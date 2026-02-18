@@ -426,16 +426,28 @@ class Manager(QWidget):
         overlay.hide()
 
     def init_tray(self):
-        self.tray = QSystemTrayIcon(QIcon("icon.ico"), self)
+        # Pega o caminho correto do ícone, mesmo dentro do exe
+        if getattr(sys, 'frozen', False):
+            base_path = sys._MEIPASS
+        else:
+            base_path = os.getcwd()
+
+        icon_path = os.path.join(base_path, "icon.ico")
+
+        self.tray = QSystemTrayIcon(QIcon(icon_path), self)
+
         menu = QMenu()
         show_action = QAction("Mostrar", self)
         show_action.triggered.connect(self.show)
         menu.addAction(show_action)
+
         quit_action = QAction("Sair", self)
         quit_action.triggered.connect(QApplication.quit)
         menu.addAction(quit_action)
+
         self.tray.setContextMenu(menu)
         self.tray.show()
+
 
     def load_overlays(self):
         for data in self.data["overlays"]:
