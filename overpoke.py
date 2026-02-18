@@ -146,6 +146,7 @@ class Overlay(QWidget):
         self.data = data
         self.drag_position = None
         self.pressed_keys = set()
+        self.active = False  # flag para hotkeys somente se ativo
 
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint |
@@ -172,7 +173,6 @@ class Overlay(QWidget):
         self.counter.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.counter.setFixedWidth(100)
         self.counter.setFixedHeight(30)
-
         pixel_font = QFont("pixel", 18)
         pixel_font.setBold(True)
         self.counter.setFont(pixel_font)
@@ -190,13 +190,25 @@ class Overlay(QWidget):
         self.update_resize_handle_position()
         self.resize_handle.show()
 
-        # Listener pynput
+        # Listener pynput, rodando o tempo todo mas ignorando se não ativo
         self.listener = pkb.Listener(on_press=self.on_key_press, on_release=self.on_key_release)
         self.listener.start()
 
     # =========================
     # HOTKEYS COMPLEXOS
     # =========================
+    def show(self):
+        super().show()
+        self.active = True  # ativa contagem apenas quando visível
+
+    def hide(self):
+        super().hide()
+        self.active = False  # desativa contagem ao esconder
+
+    def closeEvent(self, event):
+        self.active = False  # garante que contador pare ao fechar via X
+        super().closeEvent(event)
+
     def parse_hotkey(self):
         parts = self.data["hotkey"].lower().split('+')
         keys = set()
@@ -205,11 +217,12 @@ class Overlay(QWidget):
             if part == "ctrl": keys.add(pkb.Key.ctrl)
             elif part == "shift": keys.add(pkb.Key.shift)
             elif part == "alt": keys.add(pkb.Key.alt)
-            else:
-                keys.add(part)
+            else: keys.add(part)
         return keys
 
     def on_key_press(self, key):
+        if not self.active:
+            return
         parsed_hotkey = self.parse_hotkey()
         try:
             if isinstance(key, pkb.Key):
@@ -271,8 +284,7 @@ class Overlay(QWidget):
             local_pos = event.position().toPoint()
             if self.resize_handle.geometry().contains(local_pos):
                 return
-            else:
-                self.drag_position = global_pos - self.frameGeometry().topLeft()
+            self.drag_position = global_pos - self.frameGeometry().topLeft()
 
     def mouseMoveEvent(self, event):
         if self.data.get("locked"): return
@@ -317,7 +329,6 @@ class Manager(QWidget):
 
         self.setWindowTitle("OverPoke")
         self.resize(350, 420)
-
         self.current_theme = self.data.get("theme", "Minimal")
         self.setStyleSheet(THEMES[self.current_theme])
 
@@ -405,10 +416,8 @@ class Manager(QWidget):
         overlay_data = {
             "name": name,
             "gif": gif_path,
-            "x": 200,
-            "y": 200,
-            "width": 250,
-            "height": 150,
+            "x": 200, "y": 200,
+            "width": 250, "height": 150,
             "value": 0,
             "hotkey": hotkey,
             "color": [color.red(), color.green(), color.blue()],
